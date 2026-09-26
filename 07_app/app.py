@@ -19,6 +19,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.config import Config
 
 
 ENDPOINT_NAME = os.getenv("SERVING_ENDPOINT", "worldbank-gep-intelligence-agent")
@@ -59,7 +60,8 @@ EXAMPLE_QUESTIONS = [
 
 @st.cache_resource
 def get_client() -> WorkspaceClient:
-    return WorkspaceClient(http_timeout_seconds=QUERY_TIMEOUT_SECONDS)
+    # http_timeout_seconds is a Config attribute, not a WorkspaceClient kwarg.
+    return WorkspaceClient(config=Config(http_timeout_seconds=QUERY_TIMEOUT_SECONDS))
 
 
 def _parse_json(value: Any) -> Any:
