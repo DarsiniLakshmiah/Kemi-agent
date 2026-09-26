@@ -54,6 +54,12 @@ MAX_YEAR_SPAN = 30
 
 MAX_ENTITIES = 10
 
+# Total time to wait for a SQL statement, including warehouse
+# cold start. Kept under the serving endpoint request timeout.
+SQL_MAX_WAIT_SECONDS = 180
+
+SQL_POLL_SECONDS = 2
+
 
 # ============================================================
 # SUPPORTED INDICATORS
@@ -154,6 +160,42 @@ class SQLStructuredStore:
         self.w = WorkspaceClient()
 
 
+    def _wait_for_statement(self, response):
+        """
+        Poll a statement still PENDING/RUNNING after the initial
+        wait (e.g. warehouse cold start) until it finishes.
+
+        Bounded well below the serving endpoint's request timeout;
+        on expiry the statement is cancelled so it doesn't keep
+        running on the warehouse.
+        """
+
+        deadline = time.monotonic() + SQL_MAX_WAIT_SECONDS
+
+        while (
+            response.status is not None
+            and str(response.status.state).split(".")[-1]
+            in {"PENDING", "RUNNING"}
+        ):
+            if time.monotonic() > deadline:
+                self.w.statement_execution.cancel_execution(
+                    response.statement_id
+                )
+                raise RuntimeError(
+                    f"SQL statement did not finish within "
+                    f"{SQL_MAX_WAIT_SECONDS}s (warehouse may still "
+                    f"be starting). Please retry."
+                )
+
+            time.sleep(SQL_POLL_SECONDS)
+
+            response = self.w.statement_execution.get_statement(
+                response.statement_id
+            )
+
+        return response
+
+
     def query(
         self,
         statement: str,
@@ -191,8 +233,11 @@ class SQLStructuredStore:
 
                 wait_timeout="30s",
 
+                # CONTINUE, not CANCEL: a stopped warehouse can take
+                # longer than 30s to start, and cancelling there fails
+                # the first request after every idle period.
                 on_wait_timeout=(
-                    ExecuteStatementRequestOnWaitTimeout.CANCEL
+                    ExecuteStatementRequestOnWaitTimeout.CONTINUE
                 ),
 
                 disposition=Disposition.INLINE,
@@ -200,6 +245,8 @@ class SQLStructuredStore:
                 format=Format.JSON_ARRAY,
             )
         )
+
+        response = self._wait_for_statement(response)
 
 
         # ----------------------------------------------------
