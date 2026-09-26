@@ -467,6 +467,20 @@ Do not route a request for future/projection values to structured historical
 tools merely because the year is numeric. GEP forecast/projection questions
 belong to RAG unless a separate forecast tool exists.
 
+FOLLOW-UP RULE:
+deterministic_hint is computed from the current query alone, so for a short
+follow-up it may say "unknown". When conversation_context is present and the
+query only makes sense relative to it (e.g. "What about 2026?", "And for
+Africa?"), set is_followup=true and resolve it against the context:
+- Inherit the previous route, topic, regions, and entities unless the new
+  query changes them.
+- A new year in a follow-up to a GEP question is a GEP report edition:
+  put it in report_years (e.g. previous 2025 GEP + "What about 2026?" ->
+  route rag, report_years [2026]).
+- Use temporal_rag only if the follow-up explicitly asks to compare editions.
+- Write the fully resolved question in resolved_query.
+Do not route a resolvable follow-up to unknown.
+
 ENTITY RULE:
 Extract explicitly named countries, economies, aggregates, or regions.
 Do not invent an entity.
