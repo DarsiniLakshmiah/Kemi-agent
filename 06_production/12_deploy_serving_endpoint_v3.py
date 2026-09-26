@@ -119,7 +119,10 @@ try:
         print("Creating endpoint with model version", MODEL_VERSION)
         w.serving_endpoints.create_and_wait(
             name=ENDPOINT_NAME,
-            config=EndpointCoreConfigInput(served_entities=[served_entity]),
+            config=EndpointCoreConfigInput(
+                name=ENDPOINT_NAME,
+                served_entities=[served_entity],
+            ),
             timeout=DEPLOY_TIMEOUT,
         )
     print("Deployment completed")
