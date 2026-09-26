@@ -1,0 +1,7 @@
+command: ["streamlit", "run", "app.py"]
+
+env:
+  # Resolves to the endpoint name of the app resource with key
+  # "serving-endpoint" (Model serving endpoint, permission: Can query).
+  - name: SERVING_ENDPOINT
+    valueFrom: serving-endpoint
